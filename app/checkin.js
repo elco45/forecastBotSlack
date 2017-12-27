@@ -6,13 +6,14 @@ var moment = require("moment");
 
 var forecast = require("./lib/forecast");
 var peopleFilter = require("./lib/peoplefilter");
-var lookup = require("./lib/lookup");
 var activity = require("./lib/activity");
 var personName = require("./lib/personname");
-var personActivities = require("./lib/personactivities");
 var personTimeOff = require("./lib/persontimeoff");
-var conjunct = require("./lib/conjunct");
-var slack = require("./lib/slack");
+
+var Slack = require("slack-node");
+var merge = require("lodash.merge");
+
+var relations = require("../relations");
 
 var options = {
   startDate: moment(),
@@ -25,72 +26,104 @@ if (process.env.SKIP_IF_WEEKEND && (moment().day() === 6 || moment().day() === 0
   process.exit(); // eslint-disable-line no-process-exit
 }
 
+
+var createSlackInstance = function(relation) {
+  var slack = new Slack();
+  slack.setWebhook(relation.slackChannelWebhookUrl);
+  var slackMessenger = {};
+
+  slackMessenger.send = function(msg) {
+      var slackMsg = {
+        "channel": "#" + relation.slackChannel,
+        "icon_emoji": process.env.SLACK_ICON_URL,
+        "username": process.env.SLACK_USERNAME
+      };
+
+      msg = merge(slackMsg, msg);
+
+      slack.webhook(msg, function(err, response) {  // eslint-disable-line no-unused-vars
+        if (err) throw Error(err);
+      });
+  };
+
+  return slackMessenger;
+};
+
 Promise.all([
   forecast.people(),
   forecast.projects(),
   forecast.clients(),
   forecast.assignments(options)
 ]).then(data => {
-  // send DM to script admin if failed to retrieve something
-  if (data.some(d => !d)) {
-    console.error("Could not retrieve data from Forecast.");
-    if (process.env.SLACK_FORECAST_ADMIN) {
-      slack.send({
-        channel: "@" + process.env.SLACK_FORECAST_ADMIN,
-        text: "Just wanted to let you know I could not retrieve data from Forecast. Most likely the FORECAST_AUTH_TOKEN has expired and you need to set a new one."
-      });
+
+
+  relations.forEach((relation) => {
+    var slack = createSlackInstance(relation);
+
+    // send DM to script admin if failed to retrieve something
+    if (data.some(d => !d)) {
+      if (process.env.SLACK_FORECAST_ADMIN) {
+        slack.send({
+          channel: "@" + process.env.SLACK_FORECAST_ADMIN,
+          text: "Just wanted to let you know I could not retrieve data from Forecast. Most likely the FORECAST_AUTH_TOKEN has expired and you need to set a new one."
+        });
+      }
+      return;
     }
-    return;
-  }
 
-  let people = data[0];
-  let projects = lookup(data[1]);
-  let clients = lookup(data[2]);
-  let assignments = data[3];
+    let people = data[0];
+    let assignments = data[3];
 
-  people = peopleFilter
-    // exclude persons
-    .exclude(people, process.env.PEOPLE_EXCLUDE_FILTER)
-    // noticed weird case with trailing space, this fixes it
-    .map(p => {
-      p.first_name = p.first_name.trim();
-      p.last_name = p.last_name.trim();
+    people = peopleFilter
+      // exclude persons
+      .exclude(people, process.env.PEOPLE_EXCLUDE_FILTER)
+      // noticed weird case with trailing space, this fixes it
+      .map(p => {
+        p.first_name = p.first_name.trim();
+        p.last_name = p.last_name.trim();
 
-      return p;
+        return p;
+      });
+
+    // sort persons alphabetically
+    people.sort((a, b) => a.first_name.localeCompare(b.first_name));
+
+    let msg = [];
+
+    people.forEach(p => {
+      // get person activity for current day
+      let personActivityToday = activity.today(p, assignments);
+
+      var personActivityInProject = personActivityToday.filter((x) => x.project_id === parseInt(relation.forecastProjectId) && x.person_id !== null);
+      var personActivityTimeOff = personActivityToday.filter((x) => x.project_id === parseInt(process.env.PROJECT_ID_TIME_OFF) && x.person_id !== null);
+
+      if (personActivityInProject.length > 0 && personActivityTimeOff.length > 0) {
+        // person got time off and does nothing else
+        let personAllActivities = activity.get(p, assignments);
+        let endDate = personTimeOff(personAllActivities);
+        msg.push(`${personName(p, people)} is off and will be back ${endDate.format("YYYY-MM-DD")}.`);
+      }
     });
 
-  // sort persons alphabetically
-  people.sort((a, b) => a.first_name.localeCompare(b.first_name));
-
-  let msg = [];
-
-  people.forEach(p => {
-    // get person activity for current day
-    let personActivityToday = activity.today(p, assignments);
-
-    if ((personActivityToday.filter((x) => x.project_id === parseInt(process.env.PROJECT_ID_TIME_OFF))).length > 0) {
-      // person got time off and does nothing else
-      let personAllActivities = activity.get(p, assignments);
-      let endDate = personTimeOff(personAllActivities);
-      msg.push(`${personName(p, people)} is off and will be back ${endDate.format("YYYY-MM-DD")}.`);
+    if (msg.length > 0) {
+      // send as Slack msg
+      slack.send({
+        attachments: [
+          {
+            "fallback": `${options.startDate.format("dddd YYYY-MM-DD")} according to Forecast...`,
+            "pretext": `${options.startDate.format("dddd YYYY-MM-DD")} :sunrise: according to <${process.env.FORECAST_TEAM_URL}|Forecast>...`,
+            "color": "good",
+            "mrkdwn_in": ["pretext", "text", "fields"],
+            "fields": [
+                {
+                  "value": msg.join("\n"),
+                  "short": false
+                }
+            ]
+          }
+        ]
+      });
     }
   });
 
-  // send as Slack msg
-  slack.send({
-    attachments: [
-      {
-         "fallback": `${options.startDate.format("dddd YYYY-MM-DD")} according to Forecast...`,
-         "pretext": `${options.startDate.format("dddd YYYY-MM-DD")} :sunrise: according to <${process.env.FORECAST_TEAM_URL}|Forecast>...`,
-         "color": "good",
-         "mrkdwn_in": ["pretext", "text", "fields"],
-         "fields": [
-            {
-               "value": msg.join("\n"),
-               "short": false
-            }
-         ]
-      }
-     ]
-  });
 }).catch(error => console.error(error.stack || error));
