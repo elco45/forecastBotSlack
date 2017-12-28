@@ -8,11 +8,15 @@ var relations = [
     },
     {
         forecastProjectId: "1001192",
-        slackChannel: "general",
+        slackChannel: "chilisauce",
     },
     {
-        forecastProjectId: "1223517",
-        slackChannel: "random",
+        forecastProjectId: "1094476",
+        slackChannel: "hammertime",
+    },
+    {
+        forecastProjectId: "1115782",
+        slackChannel: "aquagem",
     }
 ];
 
