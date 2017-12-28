@@ -2,6 +2,11 @@
 
 var relations = [
     {
+        forecastProjectId: "",
+        slackChannel: "time-off",
+        getAllTimeOff: true,
+    },
+    {
         forecastProjectId: "1001192",
         slackChannel: "general",
     },

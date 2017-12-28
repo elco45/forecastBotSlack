@@ -26,7 +26,6 @@ if (process.env.SKIP_IF_WEEKEND && (moment().day() === 6 || moment().day() === 0
   process.exit(); // eslint-disable-line no-process-exit
 }
 
-
 var createSlackInstance = function(relation) {
   var slack = new Slack();
   slack.setWebhook(process.env.SLACK_WEBHOOK);
@@ -47,6 +46,50 @@ var createSlackInstance = function(relation) {
   };
 
   return slackMessenger;
+};
+
+var messageByDate = function(endDate, p, people) {
+  if (endDate !== "today") {
+    return `${personName(p, people)} is off and will be back ${endDate}.`;
+  } else {
+    return `${personName(p, people)} will be temporarily off today.`;
+  }
+};
+
+var createTimeOffMessageByChannel = function(people, assignments, relation) {
+  let msg = [];
+  people.forEach(p => {
+    // get person activity for current day
+    let personActivityToday = activity.today(p, assignments);
+
+    var personActivityInProject = personActivityToday.filter((x) => x.project_id === parseInt(relation.forecastProjectId) && x.person_id !== null);
+    var personActivityTimeOff = personActivityToday.filter((x) => x.project_id === parseInt(process.env.PROJECT_ID_TIME_OFF) && x.person_id !== null);
+
+    if (personActivityInProject.length > 0 && personActivityTimeOff.length > 0) {
+      let personAllActivities = activity.get(p, assignments);
+      let endDate = personTimeOff(personAllActivities);
+      msg.push(messageByDate(endDate, p, people));
+    }
+  });
+
+  return msg;
+};
+
+var createAllTimeOffMessage = function(people, assignments) {
+  let msg = [];
+  people.forEach(p => {
+    let personActivityToday = activity.today(p, assignments);
+
+    var personActivityTimeOff = personActivityToday.filter((x) => x.project_id === parseInt(process.env.PROJECT_ID_TIME_OFF) && x.person_id !== null);
+
+    if (personActivityTimeOff.length > 0) {
+      let personAllActivities = activity.get(p, assignments);
+      let endDate = personTimeOff(personAllActivities);
+      msg.push(messageByDate(endDate, p, people));
+    }
+  });
+
+  return msg;
 };
 
 Promise.all([
@@ -90,25 +133,11 @@ Promise.all([
 
     let msg = [];
 
-    people.forEach(p => {
-      // get person activity for current day
-      let personActivityToday = activity.today(p, assignments);
-      console.log(personActivityToday)
-
-      var personActivityInProject = personActivityToday.filter((x) => x.project_id === parseInt(relation.forecastProjectId) && x.person_id !== null);
-      var personActivityTimeOff = personActivityToday.filter((x) => x.project_id === parseInt(process.env.PROJECT_ID_TIME_OFF) && x.person_id !== null);
-
-      if (personActivityInProject.length > 0 && personActivityTimeOff.length > 0) {
-        // person got time off and does nothing else
-        let personAllActivities = activity.get(p, assignments);
-        let endDate = personTimeOff(personAllActivities);
-        if (endDate !== "today") {
-          msg.push(`${personName(p, people)} is off and will be back ${endDate}.`);
-        } else {
-          msg.push(`${personName(p, people)} will be temporarily off today.`);
-        }
-      }
-    });
+    if (!relation.getAllTimeOff) {
+      msg = createTimeOffMessageByChannel(people, assignments, relation);
+    } else {
+      msg = createAllTimeOffMessage(people, assignments);
+    }
 
     if (msg.length > 0) {
       // send as Slack msg
