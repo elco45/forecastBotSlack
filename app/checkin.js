@@ -29,7 +29,7 @@ if (process.env.SKIP_IF_WEEKEND && (moment().day() === 6 || moment().day() === 0
 
 var createSlackInstance = function(relation) {
   var slack = new Slack();
-  slack.setWebhook(relation.slackChannelWebhookUrl);
+  slack.setWebhook(process.env.SLACK_WEBHOOK);
   var slackMessenger = {};
 
   slackMessenger.send = function(msg) {
