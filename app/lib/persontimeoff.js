@@ -26,7 +26,9 @@ module.exports = (personActivities) => {
     .sort((a, b) => a.end_date < b.end_date ? -1 : (a.end_date > b.end_date ? 1 : 0))
     // extend end date to next working day
     .map(p => {
-      p.end_date = extendDateToNextWorkingDay(p.end_date).format("YYYY-MM-DD");
+      if (p.start_date !== p.end_date) {
+        p.end_date = extendDateToNextWorkingDay(p.end_date).format("YYYY-MM-DD");
+      }
       return p;
     });
 
@@ -43,5 +45,9 @@ module.exports = (personActivities) => {
     activity = nextActivity;
   }
 
-  return moment(activity.end_date);
+  if (activity.start_date === activity.end_date) {
+    return "today";
+  }
+
+  return moment(activity.end_date).format("YYYY-MM-DD");
 };

@@ -93,6 +93,7 @@ Promise.all([
     people.forEach(p => {
       // get person activity for current day
       let personActivityToday = activity.today(p, assignments);
+      console.log(personActivityToday)
 
       var personActivityInProject = personActivityToday.filter((x) => x.project_id === parseInt(relation.forecastProjectId) && x.person_id !== null);
       var personActivityTimeOff = personActivityToday.filter((x) => x.project_id === parseInt(process.env.PROJECT_ID_TIME_OFF) && x.person_id !== null);
@@ -101,7 +102,11 @@ Promise.all([
         // person got time off and does nothing else
         let personAllActivities = activity.get(p, assignments);
         let endDate = personTimeOff(personAllActivities);
-        msg.push(`${personName(p, people)} is off and will be back ${endDate.format("YYYY-MM-DD")}.`);
+        if (endDate !== "today") {
+          msg.push(`${personName(p, people)} is off and will be back ${endDate}.`);
+        } else {
+          msg.push(`${personName(p, people)} will be temporarily off today.`);
+        }
       }
     });
 
