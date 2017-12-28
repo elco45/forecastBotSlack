@@ -49,5 +49,5 @@ module.exports = (personActivities) => {
     return "today";
   }
 
-  return moment(activity.end_date).format("YYYY-MM-DD");
+  return moment(activity.end_date).format("MMM DD, YYYY");
 };

@@ -50,7 +50,7 @@ var createSlackInstance = function(relation) {
 
 var messageByDate = function(endDate, p, people) {
   if (endDate !== "today") {
-    return `${personName(p, people)} is off and will be back ${endDate}.`;
+    return `${personName(p, people)} is off and will be back by ${endDate}.`;
   } else {
     return `${personName(p, people)} will be temporarily off today.`;
   }
