@@ -16,7 +16,7 @@ var relations = [
     },
     {
         forecastProjectId: [1001192, 1318743],
-        slackChannel: "chilisauce",
+        slackChannel: "chilli-sauce",
     },
     {
         forecastProjectId: [1094476],
