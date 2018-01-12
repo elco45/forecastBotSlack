@@ -52,7 +52,7 @@ var messageByDate = function(endDate, p, people) {
   if (endDate !== "today") {
     return `${personName(p, people)} is off and will be back by ${endDate}.`;
   } else {
-    return `${personName(p, people)} will be temporarily off today.`;
+    return `${personName(p, people)} will be off today.`;
   }
 };
 
@@ -62,7 +62,7 @@ var createTimeOffMessageByChannel = function(people, assignments, relation) {
     // get person activity for current day
     let personActivityToday = activity.today(p, assignments);
 
-    var personActivityInProject = personActivityToday.filter((x) => x.project_id === parseInt(relation.forecastProjectId) && x.person_id !== null);
+    var personActivityInProject = personActivityToday.filter((x) => relation.forecastProjectId.indexOf(x.project_id) !== -1 && x.person_id !== null);
     var personActivityTimeOff = personActivityToday.filter((x) => x.project_id === parseInt(process.env.PROJECT_ID_TIME_OFF) && x.person_id !== null);
 
     if (personActivityInProject.length > 0 && personActivityTimeOff.length > 0) {
