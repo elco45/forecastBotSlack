@@ -138,6 +138,7 @@ Promise.all([
     } else {
       msg = createAllTimeOffMessage(people, assignments);
     }
+    console.log(msg)
 
     if (msg.length > 0) {
       // send as Slack msg
